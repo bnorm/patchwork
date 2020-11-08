@@ -17,7 +17,7 @@ class PatchworkTest {
   fun testDiffOfShorterSingleLine() {
     val patches = "some thing".diff("some")
     val expected = listOf(
-      Patch(0, 4, "")
+      Patch(0, 4, "", truncate = true)
     )
     assertEquals(expected, patches)
   }
@@ -62,7 +62,7 @@ class PatchworkTest {
       Patch(0, 4, "-"),
       Patch(1, 5, "-"),
       Patch(1, 7, "e"),
-      Patch(2, 0, "hello, world"),
+      Patch(2, 0, "hello, world", newline = true),
     )
     assertEquals(expected, patches)
   }
