@@ -44,7 +44,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body: ${{ steps.release_notes.outputs.release_notes }}
-          files: build/libs/*
+          files: patchwork/build/libs/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -56,6 +56,6 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: site
-          FOLDER: build/dokka
+          FOLDER: patchwork/build/dokka/html
           TARGET_FOLDER: docs/0.x/
           CLEAN: true
