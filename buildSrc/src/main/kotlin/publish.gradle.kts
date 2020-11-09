@@ -12,6 +12,9 @@ val projectUrl = "github.com/bnorm/patchwork"
 val sonatypeSnapshotUrl = "https://oss.sonatype.org/content/repositories/snapshots"
 val sonatypeReleaseUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
 
+repositories {
+  jcenter()
+}
 
 val release = tasks.findByPath(":release")
 release?.finalizedBy(tasks.publish)
