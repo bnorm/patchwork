@@ -1,6 +1,7 @@
 import org.gradle.api.plugins.JavaBasePlugin.DOCUMENTATION_GROUP
 
 plugins {
+  kotlin("jvm")
   `maven-publish`
   signing
   id("org.jetbrains.dokka")
@@ -18,6 +19,15 @@ repositories {
 
 val release = tasks.findByPath(":release")
 release?.finalizedBy(tasks.publish)
+
+val sourcesJar by tasks.creating(Jar::class) {
+  group = "build"
+  description = "Assembles Kotlin sources"
+
+  archiveClassifier.set("sources")
+  from(sourceSets.main.get().allSource)
+  dependsOn(tasks.classes)
+}
 
 val dokkaJar by tasks.creating(Jar::class) {
   group = DOCUMENTATION_GROUP
@@ -41,6 +51,7 @@ publishing {
   publications {
     create<MavenPublication>("default") {
       from(components["java"])
+      artifact(sourcesJar)
       artifact(dokkaJar)
 
       pom {
