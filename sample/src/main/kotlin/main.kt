@@ -1,6 +1,7 @@
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 import com.bnorm.patchwork.patch
+import com.github.ajalt.mordant.TermColors
 import com.jakewharton.picnic.BorderStyle
 import com.jakewharton.picnic.TextAlignment
 import com.jakewharton.picnic.table
@@ -11,7 +12,7 @@ import java.util.TreeMap
 
 data class Task(val name: String, val progress: Int)
 
-suspend fun main() {
+suspend fun main() = with(TermColors()) {
   var previous: String? = null
   val tasks = TreeMap<String, Task>()
   doTasks(4).collect { task ->
@@ -34,7 +35,7 @@ fun doTasks(count: Int) = channelFlow {
   }
 }
 
-private fun display(tasks: Map<String, Task>) = table {
+private fun TermColors.display(tasks: Map<String, Task>) = table {
   style {
     borderStyle = BorderStyle.Hidden
   }
@@ -54,19 +55,21 @@ private fun display(tasks: Map<String, Task>) = table {
   }
 
   for ((_, task) in tasks) {
-    val status = if (task.progress != 100) "Loading" else "Complete"
-    row(task.name, status, progress(task.progress.toDouble() / 100))
+    val status = if (task.progress != 100) yellow("Loading") else blue("Complete")
+    row(task.name, status, progress(task.progress / 100.0))
   }
 }.toString()
 
-fun progress(progress: Double) = buildString {
+fun TermColors.progress(progress: Double) = buildString {
   val percent = (progress * 100).toInt()
-  append("$percent%".padStart(4))
-  append(" [")
-  repeat(percent / 5) { append('=') }
-  if (percent != 100) {
-    append(">")
-  } else {
-    append("]")
-  }
+  append("$percent% ".padStart(5))
+  append(green(buildString {
+    append("[")
+    repeat(percent / 5) { append('=') }
+    if (percent != 100) {
+      append(">")
+    } else {
+      append("]")
+    }
+  }))
 }

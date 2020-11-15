@@ -1,7 +1,7 @@
 package com.bnorm.patchwork
 
 private const val ANSI_ESCAPE = "\u001B["
-private val ansiColorEscape = Regex("""\u001B\[\d+(;\d+)*m""")
+internal val ansiColorEscape = Regex("""\u001B\[\d+(;\d+)*m""")
 
 internal fun ansiMoveCursor(vertical: Int, horizontal: Int): String {
   if (vertical == 0 && horizontal == 0) return ""
@@ -21,9 +21,7 @@ internal fun ansiMoveCursor(vertical: Int, horizontal: Int): String {
 
 internal fun ansiClear(): String = "${ANSI_ESCAPE}K"
 
-internal fun String.visibleAt(index: Int): Int {
-  return substring(0, index).visualCodePointCount
-}
+internal val Int.charCount get() = Character.charCount(this)
 
 internal val CharSequence.visualCodePointCount: Int get() {
   // Fast path: no escapes.

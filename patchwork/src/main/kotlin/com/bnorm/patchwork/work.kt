@@ -7,60 +7,125 @@ import kotlin.jvm.JvmName
 private val lineEndRegex = "\r?\n".toRegex()
 
 fun String?.diff(replacement: String): List<Patch> {
-  // TODO handle existing ANSI character
-  // TODO does the presence of a \r in a line break diff?
-
-  val originalLines = this?.split(lineEndRegex) ?: emptyList()
-  val replacementLines = replacement.split(lineEndRegex)
+  val originalIterator = (this ?: "").asDisplayIterator()
+  val replacementIterator = replacement.asDisplayIterator()
 
   val patches = mutableListOf<Patch>()
-  val lineCount = maxOf(originalLines.size, replacementLines.size)
-  for (l in 0 until lineCount) {
-    val originalLine = originalLines.getOrNull(l)
-    val replacementLine = replacementLines.getOrNull(l) ?: ""
 
-    if (originalLine == null) {
-      patches.add(Patch(l, 0, replacementLine, newline = true))
-      continue
+  val builder = StringBuilder()
+  var line = 0
+  var offset = 0
+  var style: String? = null
+
+  fun reset(current: DisplayCharacter) {
+    line = current.line
+    offset = current.offset
+    style = null
+    builder.clear()
+  }
+
+  fun StringBuilder.appendDisplayCharacter(displayCharacter: DisplayCharacter) {
+    if (style != displayCharacter.style) {
+      append(displayCharacter.style ?: "\u001b[0m")
+      style = displayCharacter.style
     }
+    appendCodePoint(displayCharacter.codePoint)
+  }
 
-    // Find differences within the common regions of the strings
-    val characterCount = minOf(originalLine.length, replacementLine.length)
-    var c = 0
-    while (c < characterCount) {
-      if (replacementLine[c] != originalLine[c]) {
-        val offset = c
-        c++ // seek forward until the next matching character
-        while (c < characterCount && replacementLine[c] != originalLine[c]) c++
-        patches.add(Patch(l, offset, replacementLine.substring(offset, c)))
+  fun addPatch(truncate: Boolean = false, newline: Boolean = false) {
+    if (style != null) builder.append("\u001b[0m")
+    patches.add(Patch(line, offset, builder.toString(), truncate = truncate, newline = newline))
+  }
+
+  while (originalIterator.hasNext() && replacementIterator.hasNext()) {
+    var originalDisplay = originalIterator.next()
+    var replacementDisplay = replacementIterator.next()
+
+    // If the replacement line is longer than the original
+    if (replacementDisplay.line < originalDisplay.line) {
+      if (builder.isEmpty()) reset(replacementDisplay)
+
+      while (replacementDisplay.line < originalDisplay.line) {
+        builder.appendDisplayCharacter(replacementDisplay)
+        replacementDisplay = replacementIterator.next()
       }
-      c++
+
+      addPatch()
+      reset(replacementDisplay)
     }
 
-    // Find differences for strings of different sizes
-    if (originalLine.length > replacementLine.length) {
-      patches.add(Patch(l, replacementLine.length, "", truncate = true))
-    } else if (replacementLine.length > originalLine.length) {
-      patches.add(Patch(l, originalLine.length, replacementLine.substring(originalLine.length)))
+    // If the original line is longer than the replacement
+    else if (replacementDisplay.line > originalDisplay.line) {
+      if (builder.isEmpty()) reset(originalDisplay)
+
+      while (replacementDisplay.line > originalDisplay.line) {
+        originalDisplay = originalIterator.next()
+      }
+
+      addPatch(truncate = true)
+      reset(replacementDisplay)
     }
 
-    // Merge differences which cross from within the common region to the end of the line
-    if (patches.size >= 2) {
-      val ultimate = patches[patches.size - 1]
-      val penultimate = patches[patches.size - 2]
-      if (ultimate.line == penultimate.line && ultimate.offset == penultimate.offset + penultimate.replacement.length) {
-        patches.removeAt(patches.size - 1)
-        patches.removeAt(patches.size - 1)
-        patches.add(
-          Patch(
-            penultimate.line,
-            penultimate.offset,
-            penultimate.replacement + ultimate.replacement,
-            truncate = ultimate.truncate
-          )
-        )
+    // It is now the start of a new line
+    if (replacementDisplay.line > line && builder.isNotEmpty()) {
+      addPatch()
+      reset(replacementDisplay)
+    }
+
+    // The code point or style differs
+    if (replacementDisplay.codePoint != originalDisplay.codePoint ||
+      replacementDisplay.style != originalDisplay.style
+    ) {
+      if (builder.isEmpty()) reset(replacementDisplay)
+      builder.appendDisplayCharacter(replacementDisplay)
+    }
+
+    // No difference but previous difference
+    else if (builder.isNotEmpty()) {
+      addPatch()
+      reset(replacementDisplay)
+    }
+
+    // Continues to be no difference
+    else {
+      reset(replacementDisplay)
+    }
+  }
+
+  val truncate = originalIterator.hasNext()
+  if (originalIterator.hasNext()) {
+    val first = originalIterator.next()
+    if (first.line == line) {
+      if (builder.isEmpty()) {
+        offset = first.offset
+      }
+      addPatch(truncate = true)
+      reset(first)
+      offset = 0
+    }
+    while (originalIterator.hasNext()) {
+      val originalDisplay = originalIterator.next()
+      if (originalDisplay.line != line) {
+        patches.add(Patch(originalDisplay.line, 0, "", truncate = true))
+        line = originalDisplay.line
       }
     }
+  }
+
+  val startLine = line
+  while (replacementIterator.hasNext()) {
+    val replacementDisplay = replacementIterator.next()
+
+    if (replacementDisplay.line > line && builder.isNotEmpty()) {
+      addPatch(newline = true)
+      reset(replacementDisplay)
+    }
+    if (builder.isEmpty()) reset(replacementDisplay)
+    builder.appendDisplayCharacter(replacementDisplay)
+  }
+
+  if (builder.isNotEmpty()) {
+    addPatch(truncate = truncate, newline = line > startLine)
   }
 
   return patches
@@ -84,7 +149,7 @@ fun String?.patch(replacement: String): String {
       if (patch.truncate) append(ansiClear())
 
       cursorLine = patch.line
-      cursorOffset = patch.offset + patch.replacement.length
+      cursorOffset = patch.offset + patch.replacement.visualCodePointCount
 
       if (patch.newline) {
         appendLine()
@@ -96,4 +161,3 @@ fun String?.patch(replacement: String): String {
     append(ansiMoveCursor(replacementLines - cursorLine, -cursorOffset))
   }
 }
-
